@@ -15,59 +15,53 @@ class StringCalculatorImpl implements StringCalculator {
     private static final String CUSTOM_DELIMITER_PREFIX = "//";
     private static final String NEW_LINE_SIGN = "\n";
 
+    private final DelimiterService delimiterService;
+
+    public StringCalculatorImpl() {
+        this.delimiterService = new DelimiterService();
+    }
+
     @Override
-    public int add(final String numbers) {
-        if (numbers == null || numbers.isBlank()) {
+    public int add(final String input) {
+        if (input == null || input.isBlank()) {
             return 0;
         }
 
-        String delimiter = DEFAULT_DELIMITER;
-        String numbersPart = numbers;
+        final List<Integer> numbers = getAllNumbers(input);
 
-        if (numbers.startsWith(CUSTOM_DELIMITER_PREFIX)) {
-            delimiter = prepareCustomDelimiter(numbers);
-            numbersPart = StringUtils.substringAfter(numbers, NEW_LINE_SIGN);
-        }
-
-        final List<Integer> intNumbers = Arrays
-                .stream(numbersPart.split(delimiter))
-                .map(Integer::parseInt)
-                .collect(toUnmodifiableList());
-
-        final Optional<String> negativeNumbers = getNegatives(intNumbers);
+        final Optional<String> negativeNumbers = getNegatives(numbers);
         if (negativeNumbers.isPresent()) {
             throw new NegativeNumberException("Negative numbers are not allowed: " + negativeNumbers.get());
         }
 
-        return intNumbers.stream()
+        return numbers.stream()
                 .mapToInt(number -> number)
-                .filter(number -> number < MAX_VALUE)
                 .sum();
     }
 
-    private String prepareCustomDelimiter(final String numbers) {
-        String delimiter = StringUtils.substringBetween(numbers, CUSTOM_DELIMITER_PREFIX, NEW_LINE_SIGN);
-        if (delimiter.startsWith("[") && delimiter.endsWith("]")) {
-            final String[] delimiteres = StringUtils.substringsBetween(delimiter, "[", "]");
-            delimiter = "";
-            for (final String d : delimiteres) {
-                if (d.length() > 1) {
-                    for (final String dPart : d.split("")) {
-                        delimiter = delimiter.concat("[" + dPart + "]");
-                    }
-                } else {
-                    delimiter = delimiter.concat("[" + d + "]");
-                }
-                delimiter = delimiter.concat("|");
-            }
-            delimiter = StringUtils.removeEnd(delimiter, "|");
-        }
-        return delimiter;
+    private List<Integer> getAllNumbers(final String input) {
+        final boolean containsCustomDelimiter = input.startsWith(CUSTOM_DELIMITER_PREFIX);
+        final String delimiter = getDelimiter(containsCustomDelimiter, input);
+        final String numbers = getNumbers(containsCustomDelimiter, input);
+
+        return Arrays
+                .stream(numbers.split(delimiter))
+                .map(Integer::parseInt)
+                .filter(number -> number < MAX_VALUE)
+                .collect(toUnmodifiableList());
+    }
+
+    private String getDelimiter(final boolean isCustom, final String input) {
+        return isCustom ? delimiterService.prepareCustomDelimiter(input) : DEFAULT_DELIMITER;
+    }
+
+    private String getNumbers(final boolean isCustom, final String input) {
+        return isCustom ? StringUtils.substringAfter(input, NEW_LINE_SIGN) : input;
     }
 
     private Optional<String> getNegatives(final List<Integer> numbers) {
         return numbers.stream()
-                .filter(value -> value < 0)
+                .filter(number -> number < 0)
                 .map(String::valueOf)
                 .reduce((number1, number2) -> String.join(", ", number1, number2));
     }
